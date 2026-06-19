@@ -19,8 +19,6 @@ import (
 	"os"
 	"reflect"
 	"strconv"
-
-	"github.com/maeshinshin/pureconf"
 )
 
 func Apply[T any](target *T, prefix string) error {
@@ -53,7 +51,7 @@ func Apply[T any](target *T, prefix string) error {
 			if n, err := strconv.ParseInt(envVal, 10, fieldVal.Type().Bits()); err == nil {
 				fieldVal.SetInt(n)
 			} else {
-				errs = append(errs, &pureconf.ParseError{
+				errs = append(errs, &ParseError{
 					Field: field.Name,
 					Type:  fieldVal.Type().String(),
 					Value: envVal,
@@ -64,7 +62,7 @@ func Apply[T any](target *T, prefix string) error {
 			if n, err := strconv.ParseUint(envVal, 10, fieldVal.Type().Bits()); err == nil {
 				fieldVal.SetUint(n)
 			} else {
-				errs = append(errs, &pureconf.ParseError{
+				errs = append(errs, &ParseError{
 					Field: field.Name,
 					Type:  fieldVal.Type().String(),
 					Value: envVal,
@@ -75,7 +73,7 @@ func Apply[T any](target *T, prefix string) error {
 			if n, err := strconv.ParseFloat(envVal, fieldVal.Type().Bits()); err == nil {
 				fieldVal.SetFloat(n)
 			} else {
-				errs = append(errs, &pureconf.ParseError{
+				errs = append(errs, &ParseError{
 					Field: field.Name,
 					Type:  fieldVal.Type().String(),
 					Value: envVal,
@@ -86,7 +84,7 @@ func Apply[T any](target *T, prefix string) error {
 			if b, err := strconv.ParseBool(envVal); err == nil {
 				fieldVal.SetBool(b)
 			} else {
-				errs = append(errs, &pureconf.ParseError{
+				errs = append(errs, &ParseError{
 					Field: field.Name,
 					Type:  fieldVal.Type().String(),
 					Value: envVal,
@@ -94,7 +92,7 @@ func Apply[T any](target *T, prefix string) error {
 				})
 			}
 		default:
-			errs = append(errs, &pureconf.UnsupportedTypeError{
+			errs = append(errs, &UnsupportedTypeError{
 				Field: field.Name,
 				Type:  fieldVal.Type().String(),
 			})
