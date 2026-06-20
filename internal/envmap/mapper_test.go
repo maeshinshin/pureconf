@@ -18,8 +18,6 @@ import (
 	"errors"
 	"os"
 	"testing"
-
-	"github.com/maeshinshin/pureconf"
 )
 
 func TestApply_AllPrimitives(t *testing.T) {
@@ -165,25 +163,25 @@ func TestApply_Errors(t *testing.T) {
 		t.Fatalf("expected 5 errors, got %d", len(errs))
 	}
 
-	var parseErr *pureconf.ParseError
+	var parseErr *ParseError
 	if !errors.As(errs[0], &parseErr) || parseErr.Field != "BadInt" {
-		t.Errorf("error 0: expected ParseError for BadInt, got %s", errs[0].(*pureconf.ParseError).Type)
+		t.Errorf("error 0: expected ParseError for BadInt, got %s", errs[0].(*ParseError).Type)
 	}
 
 	if !errors.As(errs[1], &parseErr) || parseErr.Field != "BadUint" {
-		t.Errorf("error 1: expected ParseError for BadUint, got %s", errs[1].(*pureconf.ParseError).Type)
+		t.Errorf("error 1: expected ParseError for BadUint, got %s", errs[1].(*ParseError).Type)
 	}
 
 	if !errors.As(errs[2], &parseErr) || parseErr.Field != "BadFloat" {
-		t.Errorf("error 2: expected ParseError for BadFloat, got %s", errs[2].(*pureconf.ParseError).Type)
+		t.Errorf("error 2: expected ParseError for BadFloat, got %s", errs[2].(*ParseError).Type)
 	}
 
 	if !errors.As(errs[3], &parseErr) || parseErr.Field != "BadBool" {
-		t.Errorf("error 3: expected ParseError for BadBool, got %s", errs[3].(*pureconf.ParseError).Type)
+		t.Errorf("error 3: expected ParseError for BadBool, got %s", errs[3].(*ParseError).Type)
 	}
 
-	var unsupportErr *pureconf.UnsupportedTypeError
+	var unsupportErr *UnsupportedTypeError
 	if !errors.As(errs[4], &unsupportErr) || unsupportErr.Field != "Unsupported" {
-		t.Errorf("error 4: expected UnsupportedTypeError for Unsupported, got %T", errs[4].(*pureconf.UnsupportedTypeError).Type)
+		t.Errorf("error 4: expected UnsupportedTypeError for Unsupported, got %T", errs[4].(*UnsupportedTypeError).Type)
 	}
 }

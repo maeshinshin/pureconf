@@ -12,10 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pureconf
+package envmap
 
-import "github.com/maeshinshin/pureconf/internal/envmap"
+import "fmt"
 
-type ParseError = envmap.ParseError
+type ParseError struct {
+	Field string
+	Type  string
+	Value string
+	Err   error
+}
 
-type UnsupportedTypeError = envmap.UnsupportedTypeError
+func (e *ParseError) Error() string {
+	return fmt.Sprintf("failed to parse '%s' as %s for field %s: %v", e.Value, e.Type, e.Field, e.Err)
+}
+
+func (e *ParseError) Unwrap() error {
+	return e.Err
+}
+
+type UnsupportedTypeError struct {
+	Field string
+	Type  string
+}
+
+func (e *UnsupportedTypeError) Error() string {
+	return fmt.Sprintf("unsupported field type %s for field %s", e.Type, e.Field)
+}
