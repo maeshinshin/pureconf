@@ -20,7 +20,7 @@ import (
 	"testing"
 )
 
-func TestApply_AllPrimitives(t *testing.T) {
+func TestApply_AllPrimitives_Success(t *testing.T) {
 	type AllPrimitivesConfig struct {
 		StringVal  string  `env:"STRING_VAL"`
 		BoolVal    bool    `env:"BOOL_VAL"`
@@ -183,5 +183,110 @@ func TestApply_Errors(t *testing.T) {
 	var unsupportErr *UnsupportedTypeError
 	if !errors.As(errs[4], &unsupportErr) || unsupportErr.Field != "Unsupported" {
 		t.Errorf("error 4: expected UnsupportedTypeError for Unsupported, got %T", errs[4].(*UnsupportedTypeError).Type)
+	}
+}
+
+type dummyUnmarshaler struct {
+	Value string
+}
+
+func (d *dummyUnmarshaler) UnmarshalText(text []byte) error {
+	str := string(text)
+	if str == "error-trigger" {
+		return errors.New("dummy unmarshal error")
+	}
+	d.Value = str + "-unmarshaled"
+	return nil
+}
+
+type sensitiveDummyUnmarshaler struct {
+	Value string
+}
+
+func (d *sensitiveDummyUnmarshaler) UnmarshalText(text []byte) error {
+	return errors.New("sensitive unmarshal error")
+}
+
+func (d *sensitiveDummyUnmarshaler) IsSensitive() bool {
+	return true
+}
+
+func TestApply_TextUnmarshaler_Success(t *testing.T) {
+	type UnmarshalSuccessConfig struct {
+		Valid dummyUnmarshaler `env:"VALID"`
+	}
+
+	os.Setenv("TEST_VALID", "success")
+	t.Cleanup(func() {
+		os.Unsetenv("TEST_VALID")
+	})
+
+	target := &UnmarshalSuccessConfig{}
+	err := Apply(target, "TEST_")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if target.Valid.Value != "success-unmarshaled" {
+		t.Errorf("expected 'success-unmarshaled', got %q", target.Valid.Value)
+	}
+}
+
+func TestApply_TextUnmarshaler_Errors(t *testing.T) {
+	type UnmarshalErrorConfig struct {
+		Invalid dummyUnmarshaler          `env:"INVALID"`
+		Secret  sensitiveDummyUnmarshaler `env:"SECRET"`
+	}
+
+	os.Setenv("TEST_INVALID", "error-trigger")
+	os.Setenv("TEST_SECRET", "super-secret-text")
+	t.Cleanup(func() {
+		os.Unsetenv("TEST_INVALID")
+		os.Unsetenv("TEST_SECRET")
+	})
+
+	target := &UnmarshalErrorConfig{}
+	err := Apply(target, "TEST_")
+
+	if err == nil {
+		t.Fatal("expected errors, but got nil")
+	}
+
+	joined, ok := err.(interface{ Unwrap() []error })
+	if !ok {
+		t.Fatalf("expected joined errors, got %T", err)
+	}
+
+	errs := joined.Unwrap()
+	if len(errs) != 2 {
+		t.Fatalf("expected 2 errors, got %d", len(errs))
+	}
+
+	var parseErr1 *ParseError
+	if !errors.As(errs[0], &parseErr1) {
+		t.Fatalf("expected *ParseError for errs[0], got %T", errs[0])
+	}
+	if parseErr1.Field != "Invalid" {
+		t.Errorf("expected Field 'Invalid', got %s", parseErr1.Field)
+	}
+	if parseErr1.Value != "error-trigger" {
+		t.Errorf("expected Value 'error-trigger', got %s", parseErr1.Value)
+	}
+	if parseErr1.Err.Error() != "dummy unmarshal error" {
+		t.Errorf("unexpected underlying error: %v", parseErr1.Err)
+	}
+
+	var parseErr2 *ParseError
+	if !errors.As(errs[1], &parseErr2) {
+		t.Fatalf("expected *ParseError for errs[1], got %T", errs[1])
+	}
+	if parseErr2.Field != "Secret" {
+		t.Errorf("expected Field 'Secret', got %s", parseErr2.Field)
+	}
+	if parseErr2.Value != "***" {
+		t.Errorf("expected Value '***', got %s", parseErr2.Value)
+	}
+	if parseErr2.Err.Error() != "sensitive unmarshal error" {
+		t.Errorf("unexpected underlying error: %v", parseErr2.Err)
 	}
 }

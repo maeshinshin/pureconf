@@ -98,3 +98,78 @@ func TestLoad_Error(t *testing.T) {
 		t.Errorf("expected config to be nil on error, got %v", cfg)
 	}
 }
+
+func TestLoad_Secret(t *testing.T) {
+	type SecretConfig struct {
+		Token Secret[string] `env:"TOKEN"`
+		Pin   Secret[int]    `env:"PIN"`
+	}
+
+	os.Setenv("SEC_TOKEN", "super-secret-token")
+	os.Setenv("SEC_PIN", "1234")
+	t.Cleanup(func() {
+		os.Unsetenv("SEC_TOKEN")
+		os.Unsetenv("SEC_PIN")
+	})
+
+	cfg, err := Load[SecretConfig](WithEnvPrefix("SEC_"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Token.Unmask() != "super-secret-token" {
+		t.Errorf("expected Token 'super-secret-token', got '%s'", cfg.Token.Unmask())
+	}
+	if cfg.Pin.Unmask() != 1234 {
+		t.Errorf("expected Pin 1234, got %d", cfg.Pin.Unmask())
+	}
+}
+
+func TestLoad_Secret_Error(t *testing.T) {
+	type SecretErrorConfig struct {
+		Pin Secret[int] `env:"PIN"`
+	}
+
+	os.Setenv("SECERR_PIN", "not-a-number")
+	t.Cleanup(func() {
+		os.Unsetenv("SECERR_PIN")
+	})
+
+	cfg, err := Load[SecretErrorConfig](WithEnvPrefix("SECERR_"))
+
+	if err == nil {
+		t.Fatal("expected error, but got nil")
+	}
+
+	joined, ok := err.(interface{ Unwrap() []error })
+	if !ok {
+		t.Fatalf("expected joined errors, got %T", err)
+	}
+
+	errs := joined.Unwrap()
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %d", len(errs))
+	}
+
+	var parseErr *ParseError
+	if !errors.As(errs[0], &parseErr) {
+		t.Fatalf("expected error to be of type *ParseError, got %T", errs[0])
+	}
+
+	if parseErr.Field != "Pin" {
+		t.Errorf("expected Field 'Pin', got '%s'", parseErr.Field)
+	}
+
+	if parseErr.Value != "***" {
+		t.Errorf("expected Value '***', got '%s'", parseErr.Value)
+	}
+
+	var numErr *strconv.NumError
+	if !errors.As(parseErr.Err, &numErr) || numErr.Err != strconv.ErrSyntax {
+		t.Errorf("expected underlying error to be strconv.ErrSyntax, got %v", parseErr.Err)
+	}
+
+	if cfg != nil {
+		t.Errorf("expected config to be nil on error, got %v", cfg)
+	}
+}
