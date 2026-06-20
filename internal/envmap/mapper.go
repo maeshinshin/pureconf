@@ -15,6 +15,7 @@
 package envmap
 
 import (
+	"encoding"
 	"errors"
 	"os"
 	"reflect"
@@ -42,6 +43,25 @@ func Apply[T any](target *T, prefix string) error {
 		fieldVal := v.Field(i)
 		if !fieldVal.CanSet() {
 			continue
+		}
+
+		if fieldVal.CanAddr() {
+			addr := fieldVal.Addr().Interface()
+			if unmarshaler, ok := addr.(encoding.TextUnmarshaler); ok {
+				if err := unmarshaler.UnmarshalText([]byte(envVal)); err != nil {
+					displayVal := envVal
+					if sensitiveObj, isSensitive := addr.(interface{ IsSensitive() bool }); isSensitive && sensitiveObj.IsSensitive() {
+						displayVal = "***"
+					}
+					errs = append(errs, &ParseError{
+						Field: field.Name,
+						Type:  fieldVal.Type().String(),
+						Value: displayVal,
+						Err:   err,
+					})
+				}
+				continue
+			}
 		}
 
 		switch fieldVal.Kind() {
