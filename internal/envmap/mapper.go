@@ -20,6 +20,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 func Apply[T any](target *T, prefix string) error {
@@ -29,9 +30,15 @@ func Apply[T any](target *T, prefix string) error {
 
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Type().Field(i)
-		tag := field.Tag.Get("env")
-		if tag == "" {
+
+		if !field.IsExported() {
 			continue
+		}
+
+		tag := field.Tag.Get("env")
+
+		if tag == "" {
+			tag = strings.ToUpper(field.Name)
 		}
 
 		envVar := prefix + tag
@@ -41,9 +48,6 @@ func Apply[T any](target *T, prefix string) error {
 		}
 
 		fieldVal := v.Field(i)
-		if !fieldVal.CanSet() {
-			continue
-		}
 
 		if fieldVal.CanAddr() {
 			addr := fieldVal.Addr().Interface()

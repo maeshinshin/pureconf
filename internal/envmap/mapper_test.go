@@ -20,6 +20,18 @@ import (
 	"testing"
 )
 
+func setEnvs(t *testing.T, envs map[string]string) {
+	t.Helper()
+	for k, v := range envs {
+		os.Setenv(k, v)
+	}
+	t.Cleanup(func() {
+		for k := range envs {
+			os.Unsetenv(k)
+		}
+	})
+}
+
 func TestApply_AllPrimitives_Success(t *testing.T) {
 	type AllPrimitivesConfig struct {
 		StringVal  string  `env:"STRING_VAL"`
@@ -38,7 +50,7 @@ func TestApply_AllPrimitives_Success(t *testing.T) {
 		Float64Val float64 `env:"FLOAT64_VAL"`
 	}
 
-	envs := map[string]string{
+	setEnvs(t, map[string]string{
 		"MYAPP_STRING_VAL":  "pureconf-test",
 		"MYAPP_BOOL_VAL":    "true",
 		"MYAPP_INT_VAL":     "-42",
@@ -53,15 +65,6 @@ func TestApply_AllPrimitives_Success(t *testing.T) {
 		"MYAPP_UINT64_VAL":  "18446744073709551615",
 		"MYAPP_FLOAT32_VAL": "3.1415",
 		"MYAPP_FLOAT64_VAL": "2.718281828459",
-	}
-
-	for k, v := range envs {
-		os.Setenv(k, v)
-	}
-	t.Cleanup(func() {
-		for k := range envs {
-			os.Unsetenv(k)
-		}
 	})
 
 	target := &AllPrimitivesConfig{}
@@ -118,7 +121,6 @@ func TestApply_AllPrimitives_Success(t *testing.T) {
 func TestApply_Errors(t *testing.T) {
 	type ErrorConfig struct {
 		NoTag       string
-		unexported  string   `env:"UNEXPORTED"`
 		MissingEnv  string   `env:"MISSING_ENV"`
 		BadInt      int      `env:"BAD_INT"`
 		BadUint     uint     `env:"BAD_UINT"`
@@ -127,22 +129,12 @@ func TestApply_Errors(t *testing.T) {
 		Unsupported []string `env:"UNSUPPORTED"`
 	}
 
-	envs := map[string]string{
-		"ERRTEST_UNEXPORTED":  "secret",
+	setEnvs(t, map[string]string{
 		"ERRTEST_BAD_INT":     "not-an-int",
 		"ERRTEST_BAD_UINT":    "-1",
 		"ERRTEST_BAD_FLOAT":   "not-a-float",
 		"ERRTEST_BAD_BOOL":    "not-a-bool",
 		"ERRTEST_UNSUPPORTED": "some-value",
-	}
-
-	for k, v := range envs {
-		os.Setenv(k, v)
-	}
-	t.Cleanup(func() {
-		for k := range envs {
-			os.Unsetenv(k)
-		}
 	})
 
 	target := &ErrorConfig{}
@@ -288,5 +280,38 @@ func TestApply_TextUnmarshaler_Errors(t *testing.T) {
 	}
 	if parseErr2.Err.Error() != "sensitive unmarshal error" {
 		t.Errorf("unexpected underlying error: %v", parseErr2.Err)
+	}
+}
+
+func TestApply_ZeroConfig(t *testing.T) {
+	type ZeroConfig struct {
+		Host       string
+		Port       int
+		privateVal string
+	}
+
+	setEnvs(t, map[string]string{
+		"ZEROTEST_HOST":       "localhost",
+		"ZEROTEST_PORT":       "8080",
+		"ZEROTEST_PRIVATEVAL": "secret",
+	})
+
+	target := &ZeroConfig{
+		privateVal: "default",
+	}
+
+	err := Apply(target, "ZEROTEST_")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if target.Host != "localhost" {
+		t.Errorf("expected Host 'localhost', got %q", target.Host)
+	}
+	if target.Port != 8080 {
+		t.Errorf("expected Port 8080, got %d", target.Port)
+	}
+	if target.privateVal != "default" {
+		t.Errorf("expected privateVal 'default', got %q", target.privateVal)
 	}
 }
