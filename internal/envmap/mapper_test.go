@@ -315,3 +315,67 @@ func TestApply_ZeroConfig(t *testing.T) {
 		t.Errorf("expected privateVal 'default', got %q", target.privateVal)
 	}
 }
+
+func TestApply_NestedStruct_Success(t *testing.T) {
+	type ChildConfig struct {
+		Host string
+		Port int
+	}
+	type ParentConfig struct {
+		DB      ChildConfig
+		private string
+	}
+
+	setEnvs(t, map[string]string{
+		"APP_DB_HOST": "localhost",
+		"APP_DB_PORT": "5432",
+	})
+
+	target := &ParentConfig{}
+	err := Apply(target, "APP_")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if target.DB.Host != "localhost" {
+		t.Errorf("expected localhost, got %q", target.DB.Host)
+	}
+	if target.DB.Port != 5432 {
+		t.Errorf("expected 5432, got %d", target.DB.Port)
+	}
+}
+
+func TestApply_NestedStruct_Error(t *testing.T) {
+	type ChildConfig struct {
+		Port int
+	}
+	type ParentConfig struct {
+		DB ChildConfig
+	}
+
+	setEnvs(t, map[string]string{
+		"ERR_DB_PORT": "not-a-number",
+	})
+
+	target := &ParentConfig{}
+	err := Apply(target, "ERR_")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	joined, ok := err.(interface{ Unwrap() []error })
+	if !ok {
+		t.Fatalf("expected joined errors, got %T", err)
+	}
+
+	errs := joined.Unwrap()
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %d", len(errs))
+	}
+
+	var parseErr *ParseError
+	if !errors.As(errs[0], &parseErr) || parseErr.Field != "Port" {
+		t.Errorf("expected ParseError for Port, got %v", errs[0])
+	}
+}
