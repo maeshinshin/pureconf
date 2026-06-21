@@ -24,8 +24,11 @@ import (
 )
 
 func Apply[T any](target *T, prefix string) error {
-	v := reflect.ValueOf(target).Elem()
+	return applyRecursive(target, prefix)
+}
 
+func applyRecursive(target any, prefix string) error {
+	v := reflect.ValueOf(target).Elem()
 	var errs []error
 
 	for i := 0; i < v.NumField(); i++ {
@@ -41,31 +44,46 @@ func Apply[T any](target *T, prefix string) error {
 			tag = strings.ToUpper(field.Name)
 		}
 
+		fieldVal := v.Field(i)
+
+		// Handle Secret types
+		if fieldVal.CanAddr() {
+			addr := fieldVal.Addr().Interface()
+			if unmarshaler, ok := addr.(encoding.TextUnmarshaler); ok {
+				envVar := prefix + tag
+				if envVal, exists := os.LookupEnv(envVar); exists {
+					if err := unmarshaler.UnmarshalText([]byte(envVal)); err != nil {
+						displayVal := envVal
+						if sensitiveObj, isSensitive := addr.(interface{ IsSensitive() bool }); isSensitive && sensitiveObj.IsSensitive() {
+							displayVal = "***"
+						}
+						errs = append(errs, &ParseError{
+							Field: field.Name,
+							Type:  fieldVal.Type().String(),
+							Value: displayVal,
+							Err:   err,
+						})
+					}
+				}
+				continue
+			}
+		}
+
+		// Handle nested structs
+		if fieldVal.Kind() == reflect.Struct {
+			newPrefix := prefix + tag + "_"
+			if fieldVal.CanAddr() {
+				if err := applyRecursive(fieldVal.Addr().Interface(), newPrefix); err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+
+		// Handle primitive types
 		envVar := prefix + tag
 		envVal, exists := os.LookupEnv(envVar)
 		if !exists {
 			continue
-		}
-
-		fieldVal := v.Field(i)
-
-		if fieldVal.CanAddr() {
-			addr := fieldVal.Addr().Interface()
-			if unmarshaler, ok := addr.(encoding.TextUnmarshaler); ok {
-				if err := unmarshaler.UnmarshalText([]byte(envVal)); err != nil {
-					displayVal := envVal
-					if sensitiveObj, isSensitive := addr.(interface{ IsSensitive() bool }); isSensitive && sensitiveObj.IsSensitive() {
-						displayVal = "***"
-					}
-					errs = append(errs, &ParseError{
-						Field: field.Name,
-						Type:  fieldVal.Type().String(),
-						Value: displayVal,
-						Err:   err,
-					})
-				}
-				continue
-			}
 		}
 
 		switch fieldVal.Kind() {
