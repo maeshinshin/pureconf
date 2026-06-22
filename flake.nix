@@ -19,6 +19,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     devshell.url = "github:numtide/devshell";
     flake-utils.url = "github:numtide/flake-utils";
+    go-overlay.url = "github:purpleclay/go-overlay";
   };
 
   outputs =
@@ -27,6 +28,7 @@
       nixpkgs,
       flake-utils,
       devshell,
+      go-overlay,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -34,7 +36,10 @@
         pkgs = import nixpkgs {
           inherit system;
 
-          overlays = [ devshell.overlays.default ];
+          overlays = [
+            devshell.overlays.default
+            go-overlay.overlays.default
+          ];
           config.allowUnfree = true;
         };
       in
@@ -42,10 +47,7 @@
         devShell = pkgs.devshell.mkShell {
           commands = [
             {
-              package = pkgs.go;
-            }
-            {
-              package = pkgs.gotest;
+              package = pkgs.go-bin.versions."1.21.13";
             }
           ];
         };
