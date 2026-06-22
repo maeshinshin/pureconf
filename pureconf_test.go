@@ -16,10 +16,16 @@ package pureconf
 
 import (
 	"errors"
-	"os"
 	"strconv"
 	"testing"
 )
+
+func setEnvs(t *testing.T, envs map[string]string) {
+	t.Helper()
+	for k, v := range envs {
+		t.Setenv(k, v)
+	}
+}
 
 func TestLoad(t *testing.T) {
 	type AppConfig struct {
@@ -27,11 +33,9 @@ func TestLoad(t *testing.T) {
 		Port int    `env:"PORT"`
 	}
 
-	os.Setenv("MYAPP_HOST", "localhost")
-	os.Setenv("MYAPP_PORT", "8080")
-	t.Cleanup(func() {
-		os.Unsetenv("MYAPP_HOST")
-		os.Unsetenv("MYAPP_PORT")
+	setEnvs(t, map[string]string{
+		"MYAPP_HOST": "localhost",
+		"MYAPP_PORT": "8080",
 	})
 
 	cfg, err := Load[AppConfig](WithEnvPrefix("MYAPP_"))
@@ -52,9 +56,8 @@ func TestLoad_Error(t *testing.T) {
 		Port int `env:"PORT"`
 	}
 
-	os.Setenv("ERRAPP_PORT", "not-a-number")
-	t.Cleanup(func() {
-		os.Unsetenv("ERRAPP_PORT")
+	setEnvs(t, map[string]string{
+		"ERRAPP_PORT": "not-a-number",
 	})
 
 	cfg, err := Load[ErrorAppConfig](WithEnvPrefix("ERRAPP_"))
@@ -105,11 +108,9 @@ func TestLoad_Secret(t *testing.T) {
 		Pin   Secret[int]    `env:"PIN"`
 	}
 
-	os.Setenv("SEC_TOKEN", "super-secret-token")
-	os.Setenv("SEC_PIN", "1234")
-	t.Cleanup(func() {
-		os.Unsetenv("SEC_TOKEN")
-		os.Unsetenv("SEC_PIN")
+	setEnvs(t, map[string]string{
+		"SEC_TOKEN": "super-secret-token",
+		"SEC_PIN":   "1234",
 	})
 
 	cfg, err := Load[SecretConfig](WithEnvPrefix("SEC_"))
@@ -130,9 +131,8 @@ func TestLoad_Secret_Error(t *testing.T) {
 		Pin Secret[int] `env:"PIN"`
 	}
 
-	os.Setenv("SECERR_PIN", "not-a-number")
-	t.Cleanup(func() {
-		os.Unsetenv("SECERR_PIN")
+	setEnvs(t, map[string]string{
+		"SECERR_PIN": "not-a-number",
 	})
 
 	cfg, err := Load[SecretErrorConfig](WithEnvPrefix("SECERR_"))

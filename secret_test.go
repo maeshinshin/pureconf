@@ -49,7 +49,7 @@ func TestSecret_String(t *testing.T) {
 		t.Errorf("String() = %v, want ***", got)
 	}
 
-	if got := fmt.Sprintf("%s", s); got != "***" {
+	if got := fmt.Sprintf("%v", s); got != "***" {
 		t.Errorf("fmt.Sprintf() = %v, want ***", got)
 	}
 }
