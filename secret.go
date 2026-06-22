@@ -32,16 +32,16 @@ func (s Secret[T]) Unmask() T {
 	return s.value
 }
 
-func (s *Secret[T]) IsSensitive() bool {
-	return true
-}
-
 func (s Secret[T]) String() string {
 	return "***"
 }
 
 func (s Secret[T]) LogValue() slog.Value {
 	return slog.StringValue("***")
+}
+
+func (s *Secret[T]) IsSensitive() bool {
+	return true
 }
 
 func (s *Secret[T]) UnmarshalText(text []byte) error {
