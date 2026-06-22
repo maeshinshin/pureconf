@@ -16,20 +16,14 @@ package envmap
 
 import (
 	"errors"
-	"os"
 	"testing"
 )
 
 func setEnvs(t *testing.T, envs map[string]string) {
 	t.Helper()
 	for k, v := range envs {
-		os.Setenv(k, v)
+		t.Setenv(k, v)
 	}
-	t.Cleanup(func() {
-		for k := range envs {
-			os.Unsetenv(k)
-		}
-	})
 }
 
 func TestApply_AllPrimitives_Success(t *testing.T) {
@@ -208,9 +202,8 @@ func TestApply_TextUnmarshaler_Success(t *testing.T) {
 		Valid dummyUnmarshaler `env:"VALID"`
 	}
 
-	os.Setenv("TEST_VALID", "success")
-	t.Cleanup(func() {
-		os.Unsetenv("TEST_VALID")
+	setEnvs(t, map[string]string{
+		"TEST_VALID": "success",
 	})
 
 	target := &UnmarshalSuccessConfig{}
@@ -230,11 +223,9 @@ func TestApply_TextUnmarshaler_Errors(t *testing.T) {
 		Secret  sensitiveDummyUnmarshaler `env:"SECRET"`
 	}
 
-	os.Setenv("TEST_INVALID", "error-trigger")
-	os.Setenv("TEST_SECRET", "super-secret-text")
-	t.Cleanup(func() {
-		os.Unsetenv("TEST_INVALID")
-		os.Unsetenv("TEST_SECRET")
+	setEnvs(t, map[string]string{
+		"TEST_INVALID": "error-trigger",
+		"TEST_SECRET":  "super-secret-text",
 	})
 
 	target := &UnmarshalErrorConfig{}
@@ -342,6 +333,10 @@ func TestApply_NestedStruct_Success(t *testing.T) {
 	}
 	if target.DB.Port != 5432 {
 		t.Errorf("expected 5432, got %d", target.DB.Port)
+	}
+
+	if target.private != "" {
+		t.Errorf("expected private to be unchanged, got %q", target.private)
 	}
 }
 
