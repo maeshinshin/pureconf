@@ -1,14 +1,14 @@
 # pureconf
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/maeshinshin/pureconf.svg)](https://pkg.go.dev/github.com/maeshinshin/pureconf)
-[![Go Report Card](https://goreportcard.com/badge/github.com/maeshinshin/pureconf)](https://goreportcard.com/report/github.com/maeshinshin/pureconf)
+[![Go Report Card](https://goreportcard.com/badge/github.com/maeshinshin/pureconf?style=flat-square)](https://goreportcard.com/report/github.com/maeshinshin/pureconf)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 `pureconf` is a modern, generics-first, zero-configuration environment variable mapper for Go. 
 
 Designed specifically for the [12-Factor App](https://12factor.net/config) methodology, it strictly focuses on environment variables, providing a lightweight and secure alternative to multi-format configuration managers.
 
-## 🚀 Why pureconf? (vs. Viper)
+## Why pureconf? (vs. Viper)
 
 [`spf13/viper`](https://github.com/spf13/viper) is an incredible, battle-tested library and the undisputed king of Go configuration. Its strength lies in its comprehensive versatility—handling JSON, YAML, remote key/value stores, and live-reloading with ease.
 
@@ -26,21 +26,21 @@ However, if your project strictly follows the [12-Factor App](https://12factor.n
 
 By narrowing the focus solely to environment variables and leveraging Go 1.21+, `pureconf` provides a lightweight, type-safe, and highly secure developer experience.
 
-## ✨ Features
+## Features
 
 * **Zero-Configuration:** No `env:"..."` tags required. It automatically maps `AppConfig.DB.Port` to `APP_DB_PORT`.
 * **Built-in Secret Masking:** Use the `Secret[T]` type for passwords/tokens. They are automatically masked as `***` when printed or logged, completely preventing accidental credential leaks.
 * **Recursive Nested Structs:** Infinitely nest your configuration models natively.
 * **Comprehensive Error Aggregation:** Doesn't stop at the first typo. It validates everything and returns an aggregated list of all missing/invalid fields at once.
 
-## 📦 Installation
+## Installation
 
 ```bash
 go get github.com/maeshinshin/pureconf
 ```
 *Requires Go 1.21 or later.*
 
-## 💡 Quick Start
+## Quick Start
 
 Define your configuration purely using Go structs. No tags are needed unless you want to override the default naming convention.
 
@@ -88,7 +88,7 @@ func connectToDB(host string, port int, password string) {
 }
 ```
 
-## 🛡️ Error Aggregation
+## Error Aggregation
 
 If multiple environment variables are invalid or missing, `pureconf` tells you exactly what went wrong all at once, saving you from the frustrating "fix one, recompile, find the next error" loop.
 
@@ -101,6 +101,6 @@ if err != nil {
 }
 ```
 
-## 📄 License
+## License
 
 Apache License 2.0 - See [LICENSE](LICENSE) for details.
