@@ -374,3 +374,64 @@ func TestApply_NestedStruct_Error(t *testing.T) {
 		t.Errorf("expected ParseError for Port, got %v", errs[0])
 	}
 }
+
+func TestApply_DefaultValues(t *testing.T) {
+	type DefaultConfig struct {
+		Host       string           `env:"HOST" default:"127.0.0.1"`
+		Port       int              `env:"PORT" default:"8080"`
+		Debug      bool             `default:"true"`
+		SecretData dummyUnmarshaler `default:"default-secret"`
+		Missing    string
+	}
+
+	target := &DefaultConfig{Missing: "original"}
+
+	err := Apply(target, "DEF_")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if target.Host != "127.0.0.1" {
+		t.Errorf("expected Host '127.0.0.1', got %q", target.Host)
+	}
+	if target.Port != 8080 {
+		t.Errorf("expected Port 8080, got %d", target.Port)
+	}
+	if target.Debug != true {
+		t.Errorf("expected Debug true, got %v", target.Debug)
+	}
+	if target.SecretData.Value != "default-secret-unmarshaled" {
+		t.Errorf("expected SecretData 'default-secret-unmarshaled', got %q", target.SecretData.Value)
+	}
+
+	if target.Missing != "original" {
+		t.Errorf("expected Missing 'original', got %q", target.Missing)
+	}
+}
+
+func TestApply_Priority_PreExisting_Vs_Default(t *testing.T) {
+	type PriorityConfig struct {
+		Port       int              `env:"PORT" default:"8080"`
+		SecretData dummyUnmarshaler `default:"default-secret"`
+	}
+
+	target := &PriorityConfig{
+		Port: 9090,
+		SecretData: dummyUnmarshaler{
+			Value: "pre-existing-secret",
+		},
+	}
+
+	err := Apply(target, "PRIORITY_")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if target.Port != 9090 {
+		t.Errorf("expected pre-existing value 9090 to win, got %d", target.Port)
+	}
+
+	if target.SecretData.Value != "pre-existing-secret" {
+		t.Errorf("expected pre-existing secret to win, got %q", target.SecretData.Value)
+	}
+}
