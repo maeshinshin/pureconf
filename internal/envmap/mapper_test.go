@@ -435,3 +435,16 @@ func TestApply_Priority_PreExisting_Vs_Default(t *testing.T) {
 		t.Errorf("expected pre-existing secret to win, got %q", target.SecretData.Value)
 	}
 }
+
+func TestApply_ValidationErrors(t *testing.T) {
+	err := Apply[struct{}](nil, "TEST_")
+	if err == nil || err.Error() != "target cannot be nil" {
+		t.Errorf("expected 'target cannot be nil' error, got %v", err)
+	}
+
+	var notStruct int = 42
+	err = Apply(&notStruct, "TEST_")
+	if err == nil || err.Error() != "target must be a pointer to a struct" {
+		t.Errorf("expected 'target must be a pointer to a struct' error, got %v", err)
+	}
+}
