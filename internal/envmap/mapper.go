@@ -24,121 +24,142 @@ import (
 )
 
 func Apply[T any](target *T, prefix string) error {
-	return applyRecursive(target, prefix)
+	if target == nil {
+		return errors.New("target cannot be nil")
+	}
+
+	v := reflect.ValueOf(target)
+	if v.Kind() != reflect.Pointer || v.Elem().Kind() != reflect.Struct {
+		return errors.New("target must be a pointer to a struct")
+	}
+
+	return applyRecursive(v.Elem(), prefix)
 }
 
-func applyRecursive(target any, prefix string) error {
-	v := reflect.ValueOf(target).Elem()
+func applyRecursive(v reflect.Value, prefix string) error {
 	var errs []error
+	t := v.Type()
 
 	for i := 0; i < v.NumField(); i++ {
-		field := v.Type().Field(i)
+		field := t.Field(i)
 
 		if !field.IsExported() {
 			continue
 		}
 
-		tag := field.Tag.Get("env")
-
-		if tag == "" {
-			tag = strings.ToUpper(field.Name)
-		}
-
-		fieldVal := v.Field(i)
-
-		// Handle Secret types
-		if fieldVal.CanAddr() {
-			addr := fieldVal.Addr().Interface()
-			if unmarshaler, ok := addr.(encoding.TextUnmarshaler); ok {
-				envVar := prefix + tag
-				if envVal, exists := os.LookupEnv(envVar); exists {
-					if err := unmarshaler.UnmarshalText([]byte(envVal)); err != nil {
-						displayVal := envVal
-						if sensitiveObj, isSensitive := addr.(interface{ IsSensitive() bool }); isSensitive && sensitiveObj.IsSensitive() {
-							displayVal = "***"
-						}
-						errs = append(errs, &ParseError{
-							Field: field.Name,
-							Type:  fieldVal.Type().String(),
-							Value: displayVal,
-							Err:   err,
-						})
-					}
-				}
-				continue
-			}
-		}
-
-		// Handle nested structs
-		if fieldVal.Kind() == reflect.Struct {
-			newPrefix := prefix + tag + "_"
-			if fieldVal.CanAddr() {
-				if err := applyRecursive(fieldVal.Addr().Interface(), newPrefix); err != nil {
-					errs = append(errs, err)
-				}
-			}
-		}
-
-		// Handle primitive types
-		envVar := prefix + tag
-		envVal, exists := os.LookupEnv(envVar)
-		if !exists {
-			continue
-		}
-
-		switch fieldVal.Kind() {
-		case reflect.String:
-			fieldVal.SetString(envVal)
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			if n, err := strconv.ParseInt(envVal, 10, fieldVal.Type().Bits()); err == nil {
-				fieldVal.SetInt(n)
-			} else {
-				errs = append(errs, &ParseError{
-					Field: field.Name,
-					Type:  fieldVal.Type().String(),
-					Value: envVal,
-					Err:   err,
-				})
-			}
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			if n, err := strconv.ParseUint(envVal, 10, fieldVal.Type().Bits()); err == nil {
-				fieldVal.SetUint(n)
-			} else {
-				errs = append(errs, &ParseError{
-					Field: field.Name,
-					Type:  fieldVal.Type().String(),
-					Value: envVal,
-					Err:   err,
-				})
-			}
-		case reflect.Float32, reflect.Float64:
-			if n, err := strconv.ParseFloat(envVal, fieldVal.Type().Bits()); err == nil {
-				fieldVal.SetFloat(n)
-			} else {
-				errs = append(errs, &ParseError{
-					Field: field.Name,
-					Type:  fieldVal.Type().String(),
-					Value: envVal,
-					Err:   err,
-				})
-			}
-		case reflect.Bool:
-			if b, err := strconv.ParseBool(envVal); err == nil {
-				fieldVal.SetBool(b)
-			} else {
-				errs = append(errs, &ParseError{
-					Field: field.Name,
-					Type:  fieldVal.Type().String(),
-					Value: envVal,
-					Err:   err,
-				})
-			}
-		default:
-			errs = append(errs, &UnsupportedTypeError{
-				Field: field.Name,
-				Type:  fieldVal.Type().String(),
-			})
+		if err := processField(v.Field(i), field, prefix); err != nil {
+			errs = append(errs, err)
 		}
 	}
+
 	return errors.Join(errs...)
+}
+
+func processField(fieldVal reflect.Value, field reflect.StructField, prefix string) error {
+	tag := field.Tag.Get("env")
+	if tag == "" {
+		tag = strings.ToUpper(field.Name)
+	}
+	envVarName := prefix + tag
+
+	if fieldVal.CanAddr() {
+		addr := fieldVal.Addr().Interface()
+		if unmarshaler, ok := addr.(encoding.TextUnmarshaler); ok {
+			envVal, exists := resolveEnvValue(envVarName, field, fieldVal)
+			if !exists {
+				return nil
+			}
+
+			if err := unmarshaler.UnmarshalText([]byte(envVal)); err != nil {
+				displayVal := envVal
+				if sensitiveObj, isSensitive := addr.(interface{ IsSensitive() bool }); isSensitive && sensitiveObj.IsSensitive() {
+					displayVal = "***"
+				}
+				return &ParseError{
+					Field: field.Name,
+					Type:  fieldVal.Type().String(),
+					Value: displayVal,
+					Err:   err,
+				}
+			}
+			return nil
+		}
+	}
+
+	if fieldVal.Kind() == reflect.Struct {
+		if fieldVal.CanAddr() {
+			return applyRecursive(fieldVal, envVarName+"_")
+		}
+	}
+
+	envVal, exists := resolveEnvValue(envVarName, field, fieldVal)
+	if !exists {
+		return nil
+	}
+
+	return setPrimitive(fieldVal, field, envVal)
+}
+
+func resolveEnvValue(envVar string, field reflect.StructField, fieldVal reflect.Value) (string, bool) {
+	if envVal, exists := os.LookupEnv(envVar); exists {
+		return envVal, true
+	}
+
+	defaultVal, hasDefault := field.Tag.Lookup("default")
+	if hasDefault && fieldVal.IsZero() {
+		return defaultVal, true
+	}
+
+	return "", false
+}
+
+func setPrimitive(fieldVal reflect.Value, field reflect.StructField, envVal string) error {
+	var err error
+
+	switch fieldVal.Kind() {
+	case reflect.String:
+		fieldVal.SetString(envVal)
+		return nil
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		var n int64
+		if n, err = strconv.ParseInt(envVal, 10, fieldVal.Type().Bits()); err == nil {
+			fieldVal.SetInt(n)
+			return nil
+		}
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		var n uint64
+		if n, err = strconv.ParseUint(envVal, 10, fieldVal.Type().Bits()); err == nil {
+			fieldVal.SetUint(n)
+			return nil
+		}
+
+	case reflect.Float32, reflect.Float64:
+		var n float64
+		if n, err = strconv.ParseFloat(envVal, fieldVal.Type().Bits()); err == nil {
+			fieldVal.SetFloat(n)
+			return nil
+		}
+
+	case reflect.Bool:
+		var b bool
+		if b, err = strconv.ParseBool(envVal); err == nil {
+			fieldVal.SetBool(b)
+			return nil
+		}
+
+	default:
+		return &UnsupportedTypeError{
+			Field: field.Name,
+			Type:  fieldVal.Type().String(),
+		}
+	}
+
+	return &ParseError{
+		Field: field.Name,
+		Type:  fieldVal.Type().String(),
+		Value: envVal,
+		Err:   err,
+	}
 }
