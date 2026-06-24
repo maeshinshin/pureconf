@@ -29,7 +29,7 @@ func Apply[T any](target *T, prefix string) error {
 	}
 
 	v := reflect.ValueOf(target)
-	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct {
+	if v.Kind() != reflect.Pointer || v.Elem().Kind() != reflect.Struct {
 		return errors.New("target must be a pointer to a struct")
 	}
 

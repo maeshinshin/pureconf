@@ -49,6 +49,9 @@
             {
               package = pkgs.go-bin.versions."1.21.13";
             }
+            {
+              package = pkgs.golangci-lint;
+            }
           ];
         };
       }

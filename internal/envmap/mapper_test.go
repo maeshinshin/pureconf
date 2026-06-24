@@ -442,7 +442,7 @@ func TestApply_ValidationErrors(t *testing.T) {
 		t.Errorf("expected 'target cannot be nil' error, got %v", err)
 	}
 
-	var notStruct int = 42
+	notStruct := 42
 	err = Apply(&notStruct, "TEST_")
 	if err == nil || err.Error() != "target must be a pointer to a struct" {
 		t.Errorf("expected 'target must be a pointer to a struct' error, got %v", err)
