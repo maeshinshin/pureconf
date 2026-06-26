@@ -2,6 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/maeshinshin/pureconf.svg)](https://pkg.go.dev/github.com/maeshinshin/pureconf)
 [![Go Report Card](https://goreportcard.com/badge/github.com/maeshinshin/pureconf?style=flat-square)](https://goreportcard.com/report/github.com/maeshinshin/pureconf)
+[![codecov](https://codecov.io/gh/maeshinshin/pureconf/graph/badge.svg)](https://app.codecov.io/gh/maeshinshin/pureconf)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 `pureconf` is a modern, generics-first, zero-configuration environment variable mapper for Go. 
