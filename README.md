@@ -22,6 +22,7 @@ However, if your project strictly follows the [12-Factor App](https://12factor.n
 | **Type System** | `map[string]any` + runtime casting | **100% Static typing via Generics (`[T any]`)** |
 | **Secret Management** | Standard string handling | **`Secret[T]` auto-masks in logs to prevent leaks** |
 | **Mapping Setup** | Requires `mapstructure` tags | **Zero-Config (Auto-infers from struct names)** |
+| **Default Values** | Imperative setup via code | **Declarative via `default:"..."` struct tags** |
 | **Error Handling** | Fails on the first encountered error | **Aggregates ALL errors at once via `errors.Join`** |
 
 By narrowing the focus solely to environment variables and leveraging Go 1.21+, `pureconf` provides a lightweight, type-safe, and highly secure developer experience.
@@ -30,6 +31,7 @@ By narrowing the focus solely to environment variables and leveraging Go 1.21+, 
 
 * **Zero-Configuration:** No `env:"..."` tags required. It automatically maps `AppConfig.DB.Port` to `APP_DB_PORT`.
 * **Built-in Secret Masking:** Use the `Secret[T]` type for passwords/tokens. They are automatically masked as `***` when printed or logged, completely preventing accidental credential leaks.
+* **Declarative Defaults:** Set fallback values directly in your struct using `default:"..."` tags.
 * **Recursive Nested Structs:** Infinitely nest your configuration models natively.
 * **Comprehensive Error Aggregation:** Doesn't stop at the first typo. It validates everything and returns an aggregated list of all missing/invalid fields at once.
 
@@ -42,50 +44,74 @@ go get github.com/maeshinshin/pureconf
 
 ## Quick Start
 
-Define your configuration purely using Go structs. No tags are needed unless you want to override the default naming convention.
+Define your configuration purely using Go structs. No tags are needed unless you want to override the default naming convention or provide fallback values.
 
 ```go
 package main
 
 import (
-	"fmt"
-	"log"
-	"log/slog"
+    "fmt"
+    "log"
+    "log/slog"
 
-	"github.com/maeshinshin/pureconf"
+    "github.com/maeshinshin/pureconf"
 )
 
 // 1. Define your configuration structure
 type DBConfig struct {
-	Host string             // Maps to MYAPP_DB_HOST
-	Port int                // Maps to MYAPP_DB_PORT
-	Pass pureconf.Secret[string] // Maps to MYAPP_DB_PASS (Secured!)
+    Host string                `default:"127.0.0.1"` // Falls back to 127.0.0.1 if MYAPP_DB_HOST is unset
+    Port int                   `default:"5432"`      // Falls back to 5432 if MYAPP_DB_PORT is unset
+    Pass pureconf.Secret[string] // Maps to MYAPP_DB_PASS (Secured!)
 }
 
 type AppConfig struct {
-	Debug bool     // Maps to MYAPP_DEBUG
-	DB    DBConfig // Automatically creates the "DB_" namespace
+    Debug bool     `default:"false"` // Maps to MYAPP_DEBUG
+    DB    DBConfig // Automatically creates the "DB_" namespace
 }
 
 func main() {
-	// 2. Load configuration from environment variables
-	// Using WithEnvPrefix("MYAPP_") prevents collision with system env vars.
-	cfg, err := pureconf.Load[AppConfig](pureconf.WithEnvPrefix("MYAPP_"))
-	if err != nil {
-		log.Fatalf("Configuration failed:\n%v", err)
-	}
+    // 2. Load configuration from environment variables
+    // Using WithEnvPrefix("MYAPP_") prevents collision with system env vars.
+    cfg, err := pureconf.Load[AppConfig](pureconf.WithEnvPrefix("MYAPP_"))
+    if err != nil {
+        log.Fatalf("Configuration failed:\n%v", err)
+    }
 
-	// 3. Secrets are protected by default!
-	slog.Info("Loaded configuration", "db_password", cfg.DB.Pass) 
-	// Output: "db_password": "***" (Prevents accidental log leaks)
+    // 3. Secrets are protected by default!
+    slog.Info("Loaded configuration", "db_password", cfg.DB.Pass) 
+    // Output: "db_password": "***" (Prevents accidental log leaks)
 
-	// 4. Explicitly unmask when you actually need to use the secret
-	connectToDB(cfg.DB.Host, cfg.DB.Port, cfg.DB.Pass.Unmask())
+    // 4. Explicitly unmask when you actually need to use the secret
+    connectToDB(cfg.DB.Host, cfg.DB.Port, cfg.DB.Pass.Unmask())
 }
 
 func connectToDB(host string, port int, password string) {
-	fmt.Printf("Connecting to %s:%d...\n", host, port)
+    fmt.Printf("Connecting to %s:%d...\n", host, port)
 }
+```
+
+## Default Values & Priorities
+
+You can easily set fallback values using the `default:"..."` struct tag. 
+
+`pureconf` respects the following priority hierarchy (from highest to lowest):
+
+1. **Environment Variables:** Always takes absolute precedence.
+2. **Pre-initialized Struct Values:** If you set a non-zero value in your struct *before* calling `pureconf.Load()`, it overrides the `default` tag.
+3. **`default` Tags:** Used only if the environment variable is missing and the field is at its zero value.
+
+```go
+type ServerConfig struct {
+    Port int `default:"8080"`
+}
+
+// Example 1: Standard load (Port becomes 8080 via default tag)
+cfg1, _ := pureconf.Load[ServerConfig]() 
+
+// Example 2: Pre-initialized value takes precedence (Port remains 9090)
+// The `default:"8080"` tag is ignored because the value is already set.
+cfg2 := &ServerConfig{Port: 9090}
+pureconf.Load(cfg2) 
 ```
 
 ## Error Aggregation
