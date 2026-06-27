@@ -15,17 +15,10 @@
 package pureconf
 
 type options struct {
-	filePath  string
 	envPrefix string
 }
 
 type Option func(*options)
-
-func WithFile(f string) Option {
-	return func(o *options) {
-		o.filePath = f
-	}
-}
 
 func WithEnvPrefix(p string) Option {
 	return func(o *options) {

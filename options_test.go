@@ -18,16 +18,6 @@ import (
 	"testing"
 )
 
-func TestWithFile(t *testing.T) {
-	opts := &options{}
-	optFunc := WithFile("config.json")
-	optFunc(opts)
-
-	if opts.filePath != "config.json" {
-		t.Errorf("expected filePath to be 'config.json', got '%s'", opts.filePath)
-	}
-}
-
 func TestWithEnvPrefix(t *testing.T) {
 	opts := &options{}
 	optFunc := WithEnvPrefix("MYAPP_")
